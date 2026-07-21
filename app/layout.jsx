@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react';
 import './globals.css';
 
 export const metadata = {
@@ -6,7 +5,7 @@ export const metadata = {
   description: 'OpenAI-powered agent running on Vercel AI Gateway',
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body>{children}</body>

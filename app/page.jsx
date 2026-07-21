@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useState } from 'react';
+import { useState } from 'react';
 
 export default function Home() {
   const [prompt, setPrompt] = useState('Create a Polymarket research plan for today.');
@@ -8,7 +8,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
-  async function submitPrompt(event: FormEvent<HTMLFormElement>) {
+  async function submitPrompt(event) {
     event.preventDefault();
     setIsLoading(true);
     setError('');
