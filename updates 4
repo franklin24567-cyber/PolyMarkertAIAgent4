@@ -1,0 +1,549 @@
+import {
+  boolean,
+  integer,
+  jsonb,
+  pgEnum,
+  pgTable,
+  serial,
+  text,
+  timestamp,
+  varchar,
+  real,
+} from "drizzle-orm/pg-core";
+import { relations } from "drizzle-orm";
+
+/* -----------------------------
+   Auth / Roles
+------------------------------ */
+
+export const roleEnum = pgEnum("role", ["owner", "admin", "member"]);
+
+export const users = pgTable("User", {
+  id: varchar("id", { length: 191 }).primaryKey(),
+  name: varchar("name", { length: 191 }),
+  email: varchar("email", { length: 191 }).unique(),
+  emailVerified: timestamp("emailVerified", { withTimezone: true }),
+  image: text("image"),
+  role: roleEnum("role").notNull().default("member"),
+  balance: real("balance").notNull().default(0),
+
+  createdAt: timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updatedAt", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const accounts = pgTable("Account", {
+  id: varchar("id", { length: 191 }).primaryKey(),
+  userId: varchar("userId", { length: 191 })
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  type: varchar("type", { length: 191 }).notNull(),
+  provider: varchar("provider", { length: 191 }).notNull(),
+  providerAccountId: varchar("providerAccountId", { length: 191 }).notNull(),
+  refresh_token: text("refresh_token"),
+  access_token: text("access_token"),
+  expires_at: integer("expires_at"),
+  token_type: varchar("token_type", { length: 191 }),
+  scope: varchar("scope", { length: 191 }),
+  id_token: text("id_token"),
+  session_state: varchar("session_state", { length: 191 }),
+});
+
+export const sessions = pgTable("Session", {
+  id: varchar("id", { length: 191 }).primaryKey(),
+  sessionToken: varchar("sessionToken", { length: 191 }).notNull().unique(),
+  userId: varchar("userId", { length: 191 })
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  expires: timestamp("expires", { withTimezone: true }).notNull(),
+});
+
+export const verificationTokens = pgTable("VerificationToken", {
+  identifier: varchar("identifier", { length: 191 }).notNull(),
+  token: varchar("token", { length: 191 }).notNull().unique(),
+  expires: timestamp("expires", { withTimezone: true }).notNull(),
+});
+
+/* -----------------------------
+   Dashboard / Core Data
+------------------------------ */
+
+export const walletStatusEnum = pgEnum("wallet_status", [
+  "track",
+  "watch",
+  "ignore",
+]);
+
+export const decisionEnum = pgEnum("decision_type", [
+  "paper_copy",
+  "watchlist",
+  "skip",
+]);
+
+export const tradeStatusEnum = pgEnum("trade_status", [
+  "open",
+  "closed",
+  "resolved",
+]);
+
+export const withdrawalStatusEnum = pgEnum("withdrawal_status", [
+  "pending",
+  "approved",
+  "rejected",
+  "paid",
+]);
+
+export const withdrawalAuditActionEnum = pgEnum("withdrawal_audit_action", [
+  "requested",
+  "approved",
+  "rejected",
+  "paid",
+]);
+
+export const balanceLedgerTypeEnum = pgEnum("balance_ledger_type", [
+  "deposit",
+  "withdrawal_requested",
+  "withdrawal_approved",
+  "withdrawal_paid",
+  "adjustment",
+  "correction",
+  "reward",
+]);
+
+export const depositStatusEnum = pgEnum("deposit_status", [
+  "pending",
+  "confirmed",
+  "rejected",
+]);
+
+export const leaderboardScan = pgTable("LeaderboardScan", {
+  id: serial("id").primaryKey(),
+  source: varchar("source", { length: 191 }).notNull(),
+  scannedAt: timestamp("scannedAt", { withTimezone: true }).notNull().defaultNow(),
+  walletCount: integer("walletCount").notNull().default(0),
+  lookbackDays: integer("lookbackDays").notNull().default(30),
+  rawSummaryJson: jsonb("rawSummaryJson").notNull(),
+});
+
+export const walletProfile = pgTable("WalletProfile", {
+  id: serial("id").primaryKey(),
+  address: varchar("address", { length: 191 }).notNull().unique(),
+  label: varchar("label", { length: 191 }).notNull(),
+  sourceRank: integer("sourceRank").notNull().default(0),
+  status: walletStatusEnum("status").notNull().default("watch"),
+
+  roi30d: real("roi30d").notNull().default(0),
+  consistencyScore: real("consistencyScore").notNull().default(0),
+  copyabilityScore: real("copyabilityScore").notNull().default(0),
+  oneHitWonderPenalty: real("oneHitWonderPenalty").notNull().default(0),
+  globalScore: real("globalScore").notNull().default(0),
+
+  bestCategory: varchar("bestCategory", { length: 191 }).notNull(),
+  categoryStrengthsJson: jsonb("categoryStrengthsJson").notNull(),
+
+  averageTradeSize: real("averageTradeSize").notNull().default(0),
+  tradeCount30d: integer("tradeCount30d").notNull().default(0),
+  resolvedTradeCount30d: integer("resolvedTradeCount30d").notNull().default(0),
+  winRate30d: real("winRate30d").notNull().default(0),
+  averageLiquidity: real("averageLiquidity").notNull().default(0),
+  averageSpread: real("averageSpread").notNull().default(0),
+  averageEntryTiming: varchar("averageEntryTiming", { length: 191 }).notNull().default("Unknown"),
+  copyabilityNotes: text("copyabilityNotes").notNull().default(""),
+  riskNotes: text("riskNotes").notNull().default(""),
+  lastScannedAt: timestamp("lastScannedAt", { withTimezone: true }),
+  createdAt: timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updatedAt", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const observedTrade = pgTable("ObservedTrade", {
+  id: serial("id").primaryKey(),
+  walletAddress: varchar("walletAddress", { length: 191 })
+    .notNull()
+    .references(() => walletProfile.address, { onDelete: "cascade" }),
+
+  marketId: varchar("marketId", { length: 191 }).notNull(),
+  conditionId: varchar("conditionId", { length: 191 }).notNull(),
+  marketQuestion: text("marketQuestion").notNull(),
+  marketCategory: varchar("marketCategory", { length: 191 }).notNull(),
+  outcome: varchar("outcome", { length: 191 }).notNull(),
+  side: varchar("side", { length: 191 }).notNull(),
+
+  walletEntryPrice: real("walletEntryPrice").notNull().default(0),
+  detectedPrice: real("detectedPrice").notNull().default(0),
+  size: real("size").notNull().default(0),
+
+  timestamp: timestamp("timestamp", { withTimezone: true }).notNull().defaultNow(),
+  rawTradeJson: jsonb("rawTradeJson").notNull(),
+  createdAt: timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const marketSnapshot = pgTable("MarketSnapshot", {
+  id: serial("id").primaryKey(),
+  marketId: varchar("marketId", { length: 191 }).notNull(),
+  conditionId: varchar("conditionId", { length: 191 }).notNull(),
+  question: text("question").notNull(),
+  category: varchar("category", { length: 191 }).notNull(),
+
+  yesPrice: real("yesPrice").notNull().default(0),
+  noPrice: real("noPrice").notNull().default(0),
+  bestBid: real("bestBid").notNull().default(0),
+  bestAsk: real("bestAsk").notNull().default(0),
+  spread: real("spread").notNull().default(0),
+  liquidity: real("liquidity").notNull().default(0),
+  volume: real("volume").notNull().default(0),
+
+  timeToResolution: varchar("timeToResolution", { length: 191 }).notNull().default("Unknown"),
+  collectedAt: timestamp("collectedAt", { withTimezone: true }).notNull().defaultNow(),
+  rawMarketJson: jsonb("rawMarketJson").notNull(),
+});
+
+export const decisionJournal = pgTable("DecisionJournal", {
+  id: serial("id").primaryKey(),
+  observedTradeId: integer("observedTradeId")
+    .notNull()
+    .references(() => observedTrade.id, { onDelete: "cascade" }),
+
+  walletAddress: varchar("walletAddress", { length: 191 })
+    .notNull()
+    .references(() => walletProfile.address, { onDelete: "cascade" }),
+
+  marketId: varchar("marketId", { length: 191 }).notNull(),
+  decision: decisionEnum("decision").notNull(),
+
+  copyScore: real("copyScore").notNull().default(0),
+  confidence: real("confidence").notNull().default(0),
+  reasonsJson: jsonb("reasonsJson").notNull(),
+  risksJson: jsonb("risksJson").notNull(),
+
+  walletQualityScore: real("walletQualityScore").notNull().default(0),
+  roiScore: real("roiScore").notNull().default(0),
+  consistencyScore: real("consistencyScore").notNull().default(0),
+  copyabilityScore: real("copyabilityScore").notNull().default(0),
+  categoryFitScore: real("categoryFitScore").notNull().default(0),
+  entryTimingScore: real("entryTimingScore").notNull().default(0),
+  spreadScore: real("spreadScore").notNull().default(0),
+  liquidityScore: real("liquidityScore").notNull().default(0),
+  thesisScore: real("thesisScore").notNull().default(0),
+
+  simulatedPositionSize: real("simulatedPositionSize").notNull().default(0),
+  createdAt: timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const paperTrade = pgTable("PaperTrade", {
+  id: serial("id").primaryKey(),
+  decisionJournalId: integer("decisionJournalId")
+    .notNull()
+    .references(() => decisionJournal.id, { onDelete: "cascade" }),
+
+  walletAddress: varchar("walletAddress", { length: 191 })
+    .notNull()
+    .references(() => walletProfile.address, { onDelete: "cascade" }),
+
+  marketId: varchar("marketId", { length: 191 }).notNull(),
+  outcome: varchar("outcome", { length: 191 }).notNull(),
+  side: varchar("side", { length: 191 }).notNull(),
+
+  entryPrice: real("entryPrice").notNull().default(0),
+  currentPrice: real("currentPrice").notNull().default(0),
+  simulatedPositionSize: real("simulatedPositionSize").notNull().default(0),
+
+  unrealizedPnl: real("unrealizedPnl").notNull().default(0),
+  realizedPnl: real("realizedPnl").notNull().default(0),
+  status: tradeStatusEnum("status").notNull().default("open"),
+
+  openedAt: timestamp("openedAt", { withTimezone: true }).notNull().defaultNow(),
+  closedAt: timestamp("closedAt", { withTimezone: true }),
+  resolvedAt: timestamp("resolvedAt", { withTimezone: true }),
+});
+
+export const pnlSnapshot = pgTable("PnlSnapshot", {
+  id: serial("id").primaryKey(),
+  paperTradeId: integer("paperTradeId")
+    .notNull()
+    .references(() => paperTrade.id, { onDelete: "cascade" }),
+
+  price: real("price").notNull().default(0),
+  pnl: real("pnl").notNull().default(0),
+  collectedAt: timestamp("collectedAt", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const outcomeReview = pgTable("OutcomeReview", {
+  id: serial("id").primaryKey(),
+  decisionJournalId: integer("decisionJournalId")
+    .notNull()
+    .references(() => decisionJournal.id, { onDelete: "cascade" }),
+
+  paperTradeId: integer("paperTradeId")
+    .notNull()
+    .references(() => paperTrade.id, { onDelete: "cascade" }),
+
+  reviewTime: timestamp("reviewTime", { withTimezone: true }).notNull().defaultNow(),
+  priceAfter1h: real("priceAfter1h"),
+  priceAfter6h: real("priceAfter6h"),
+  priceAfter24h: real("priceAfter24h"),
+  finalOutcome: varchar("finalOutcome", { length: 191 }).notNull(),
+  simulatedPnl: real("simulatedPnl").notNull().default(0),
+  wasDecisionGood: boolean("wasDecisionGood").notNull().default(false),
+  lessonsJson: jsonb("lessonsJson").notNull(),
+  createdAt: timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const ruleSet = pgTable("RuleSet", {
+  id: serial("id").primaryKey(),
+  version: varchar("version", { length: 191 }).notNull().unique(),
+  active: boolean("active").notNull().default(false),
+  rulesJson: jsonb("rulesJson").notNull(),
+  createdAt: timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updatedAt", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const ruleChange = pgTable("RuleChange", {
+  id: serial("id").primaryKey(),
+  oldRuleSetId: integer("oldRuleSetId")
+    .notNull()
+    .references(() => ruleSet.id, { onDelete: "cascade" }),
+  newRuleSetId: integer("newRuleSetId")
+    .notNull()
+    .references(() => ruleSet.id, { onDelete: "cascade" }),
+
+  changedBy: varchar("changedBy", { length: 191 }).notNull().default("hermes"),
+  reason: text("reason").notNull(),
+  evidenceSummary: text("evidenceSummary").notNull(),
+  beforeJson: jsonb("beforeJson").notNull(),
+  afterJson: jsonb("afterJson").notNull(),
+  createdAt: timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const dailyReport = pgTable("DailyReport", {
+  id: serial("id").primaryKey(),
+  date: timestamp("date", { withTimezone: true }).notNull(),
+  paperPnl: real("paperPnl").notNull().default(0),
+  winRate: real("winRate").notNull().default(0),
+  openPositions: integer("openPositions").notNull().default(0),
+  newSignals: integer("newSignals").notNull().default(0),
+  copiedSignals: integer("copiedSignals").notNull().default(0),
+  watchedSignals: integer("watchedSignals").notNull().default(0),
+  skippedSignals: integer("skippedSignals").notNull().default(0),
+  bestWalletsJson: jsonb("bestWalletsJson").notNull(),
+  worstWalletsJson: jsonb("worstWalletsJson").notNull(),
+  ruleChangesJson: jsonb("ruleChangesJson").notNull(),
+  summary: text("summary").notNull(),
+  sentToTelegram: boolean("sentToTelegram").notNull().default(false),
+  createdAt: timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const withdrawalRequest = pgTable("WithdrawalRequest", {
+  id: serial("id").primaryKey(),
+  userId: varchar("userId", { length: 191 })
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+
+  amount: real("amount").notNull().default(0),
+  currency: varchar("currency", { length: 16 }).notNull().default("USD"),
+  destination: text("destination").notNull(),
+  status: withdrawalStatusEnum("status").notNull().default("pending"),
+
+  requestedAt: timestamp("requestedAt", { withTimezone: true }).notNull().defaultNow(),
+  reviewedAt: timestamp("reviewedAt", { withTimezone: true }),
+  reviewedById: varchar("reviewedById", { length: 191 }).references(() => users.id, {
+    onDelete: "set null",
+  }),
+
+  notes: text("notes"),
+  adminNotes: text("adminNotes"),
+
+  createdAt: timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updatedAt", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const withdrawalAuditLog = pgTable("WithdrawalAuditLog", {
+  id: serial("id").primaryKey(),
+  withdrawalRequestId: integer("withdrawalRequestId")
+    .notNull()
+    .references(() => withdrawalRequest.id, { onDelete: "cascade" }),
+
+  actorUserId: varchar("actorUserId", { length: 191 }).references(() => users.id, {
+    onDelete: "set null",
+  }),
+
+  action: withdrawalAuditActionEnum("action").notNull(),
+  details: text("details"),
+  createdAt: timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const balanceLedgerEntry = pgTable("BalanceLedgerEntry", {
+  id: serial("id").primaryKey(),
+  userId: varchar("userId", { length: 191 })
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+
+  type: balanceLedgerTypeEnum("type").notNull(),
+  amount: real("amount").notNull().default(0),
+  balanceBefore: real("balanceBefore").notNull().default(0),
+  balanceAfter: real("balanceAfter").notNull().default(0),
+
+  referenceId: varchar("referenceId", { length: 191 }),
+  notes: text("notes"),
+
+  createdById: varchar("createdById", { length: 191 }).references(() => users.id, {
+    onDelete: "set null",
+  }),
+
+  createdAt: timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const deposit = pgTable("Deposit", {
+  id: serial("id").primaryKey(),
+
+  userId: varchar("userId", { length: 191 })
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+
+  walletAddress: varchar("walletAddress", { length: 191 }).notNull(),
+  treasuryAddress: varchar("treasuryAddress", { length: 191 }).notNull(),
+  txHash: varchar("txHash", { length: 191 }).notNull().unique(),
+
+  chainId: integer("chainId").notNull(),
+  amount: real("amount").notNull().default(0),
+  status: depositStatusEnum("status").notNull().default("pending"),
+
+  blockNumber: integer("blockNumber"),
+  confirmedAt: timestamp("confirmedAt", { withTimezone: true }),
+
+  createdAt: timestamp("createdAt", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updatedAt", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/* -----------------------------
+   Relations
+------------------------------ */
+
+export const usersRelations = relations(users, ({ many }) => ({
+  accounts: many(accounts),
+  sessions: many(sessions),
+  withdrawalRequests: many(withdrawalRequest),
+  reviewedWithdrawals: many(withdrawalRequest),
+  withdrawalAuditLogs: many(withdrawalAuditLog),
+  balanceLedgerEntries: many(balanceLedgerEntry),
+  balanceLedgerActions: many(balanceLedgerEntry),
+  deposits: many(deposit),
+}));
+
+export const walletProfileRelations = relations(walletProfile, ({ many }) => ({
+  observedTrades: many(observedTrade),
+  decisionJournals: many(decisionJournal),
+  paperTrades: many(paperTrade),
+}));
+
+export const observedTradeRelations = relations(observedTrade, ({ one }) => ({
+  wallet: one(walletProfile, {
+    fields: [observedTrade.walletAddress],
+    references: [walletProfile.address],
+  }),
+}));
+
+export const decisionJournalRelations = relations(decisionJournal, ({ one }) => ({
+  observedTrade: one(observedTrade, {
+    fields: [decisionJournal.observedTradeId],
+    references: [observedTrade.id],
+  }),
+  wallet: one(walletProfile, {
+    fields: [decisionJournal.walletAddress],
+    references: [walletProfile.address],
+  }),
+}));
+
+export const paperTradeRelations = relations(paperTrade, ({ one, many }) => ({
+  decisionJournal: one(decisionJournal, {
+    fields: [paperTrade.decisionJournalId],
+    references: [decisionJournal.id],
+  }),
+  wallet: one(walletProfile, {
+    fields: [paperTrade.walletAddress],
+    references: [walletProfile.address],
+  }),
+  pnlSnapshots: many(pnlSnapshot),
+}));
+
+export const pnlSnapshotRelations = relations(pnlSnapshot, ({ one }) => ({
+  paperTrade: one(paperTrade, {
+    fields: [pnlSnapshot.paperTradeId],
+    references: [paperTrade.id],
+  }),
+}));
+
+export const outcomeReviewRelations = relations(outcomeReview, ({ one }) => ({
+  decisionJournal: one(decisionJournal, {
+    fields: [outcomeReview.decisionJournalId],
+    references: [decisionJournal.id],
+  }),
+  paperTrade: one(paperTrade, {
+    fields: [outcomeReview.paperTradeId],
+    references: [paperTrade.id],
+  }),
+}));
+
+export const ruleChangeRelations = relations(ruleChange, ({ one }) => ({
+  oldRuleSet: one(ruleSet, {
+    fields: [ruleChange.oldRuleSetId],
+    references: [ruleSet.id],
+  }),
+  newRuleSet: one(ruleSet, {
+    fields: [ruleChange.newRuleSetId],
+    references: [ruleSet.id],
+  }),
+}));
+
+export const withdrawalRequestRelations = relations(
+  withdrawalRequest,
+  ({ one, many }) => ({
+    user: one(users, {
+      fields: [withdrawalRequest.userId],
+      references: [users.id],
+    }),
+    reviewedBy: one(users, {
+      fields: [withdrawalRequest.reviewedById],
+      references: [users.id],
+      relationName: "WithdrawalReviewedBy",
+    }),
+    auditLogs: many(withdrawalAuditLog),
+  })
+);
+
+export const withdrawalAuditLogRelations = relations(
+  withdrawalAuditLog,
+  ({ one }) => ({
+    withdrawalRequest: one(withdrawalRequest, {
+      fields: [withdrawalAuditLog.withdrawalRequestId],
+      references: [withdrawalRequest.id],
+    }),
+    actor: one(users, {
+      fields: [withdrawalAuditLog.actorUserId],
+      references: [users.id],
+      relationName: "WithdrawalAuditActor",
+    }),
+  })
+);
+
+export const balanceLedgerEntryRelations = relations(
+  balanceLedgerEntry,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [balanceLedgerEntry.userId],
+      references: [users.id],
+    }),
+    createdBy: one(users, {
+      fields: [balanceLedgerEntry.createdById],
+      references: [users.id],
+      relationName: "BalanceLedgerActor",
+    }),
+  })
+);
+
+export const depositRelations = relations(deposit, ({ one }) => ({
+  user: one(users, {
+    fields: [deposit.userId],
+    references: [users.id],
+  }),
+}));
