@@ -1,70 +1,57 @@
-'use client';
+import Link from 'next/link';
 
-import { useState } from 'react';
-
-export default function Home() {
-  const [prompt, setPrompt] = useState('Create a Polymarket research plan for today.');
-  const [response, setResponse] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  async function submitPrompt(event) {
-    event.preventDefault();
-    setIsLoading(true);
-    setError('');
-    setResponse('');
-
-    try {
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt }),
-      });
-
-      if (!res.ok || !res.body) {
-        throw new Error('The AI request failed.');
-      }
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        setResponse((current) => current + decoder.decode(value, { stream: true }));
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong.');
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
+export default function HomePage() {
   return (
-    <main className="container">
-      <section className="card">
-        <p className="eyebrow">Vercel AI Gateway</p>
-        <h1>PolyMarkert AI Agent</h1>
-        <p className="intro">
-          Ask OpenAI for research, market summaries, or agent-building ideas. Requests run through Vercel AI Gateway.
+    <main style={styles.main}>
+      <div style={styles.card}>
+        <h1 style={styles.title}>PolyMarket AI Agent</h1>
+        <p style={styles.text}>
+          Open the dashboard editor to make changes with OpenAI.
         </p>
 
-        <form onSubmit={submitPrompt}>
-          <label htmlFor="prompt">Prompt</label>
-          <textarea
-            id="prompt"
-            value={prompt}
-            onChange={(event) => setPrompt(event.target.value)}
-            rows={6}
-          />
-          <button type="submit" disabled={isLoading || !prompt.trim()}>
-            {isLoading ? 'Thinking...' : 'Ask OpenAI'}
-          </button>
-        </form>
-
-        {error && <p className="error">{error}</p>}
-        {response && <pre className="response">{response}</pre>}
-      </section>
+        <Link href="/dashboard" style={styles.link}>
+          Open Dashboard Editor
+        </Link>
+      </div>
     </main>
   );
 }
+
+const styles = {
+  main: {
+    minHeight: '100vh',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: '#0b1220',
+    fontFamily: 'Arial, sans-serif',
+    padding: '24px',
+  },
+  card: {
+    background: '#111827',
+    border: '1px solid #243041',
+    padding: '32px',
+    borderRadius: '16px',
+    maxWidth: '600px',
+    width: '100%',
+    textAlign: 'center',
+    color: 'white',
+  },
+  title: {
+    fontSize: '2rem',
+    marginBottom: '12px',
+  },
+  text: {
+    color: '#cbd5e1',
+    marginBottom: '20px',
+  },
+  link: {
+    display: 'inline-block',
+    background: '#2563eb',
+    color: 'white',
+    padding: '12px 18px',
+    borderRadius: '10px',
+    textDecoration: 'none',
+    fontWeight: '600',
+  },
+};
